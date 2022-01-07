@@ -1,0 +1,14 @@
+{
+  "db": {
+    "db_name": "db_name",
+    "host": "localhost",
+    "password": "db_password",
+    "port": "3306",
+    "user": "db_user"
+  },
+  "debug": false,
+  "files": {
+    "path": "../../web/pic/",
+    "table": "prefix_file"
+  }
+}
