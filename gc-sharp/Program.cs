@@ -17,7 +17,7 @@ namespace gc
                         var jsonOpts = new JsonSerializerOptions();
                         jsonOpts.WriteIndented = true;
 
-                        Console.WriteLine($"Options provided:\n{JsonSerializer.Serialize(opts, jsonOpts)}");
+                        Logger.Info($"Options provided:\n{JsonSerializer.Serialize(opts, jsonOpts)}");
 
                         var timeStart = DateTime.Now;
 
@@ -25,12 +25,12 @@ namespace gc
 
                         await cleaner.CleanUp();
 
-                        Console.WriteLine($"All tasks completed in {DateTime.Now - timeStart}");
+                        Logger.Info($"All tasks completed in {DateTime.Now - timeStart}");
                         return 0;
                     }
                     catch (Exception e)
                     {
-                        Console.WriteLine($"Error! {e.Message}\n{e.StackTrace}");
+                        Logger.Info($"Error! {e.Message}\n{e.StackTrace}");
                         return -3; // Unhandled error
                     }
                 },

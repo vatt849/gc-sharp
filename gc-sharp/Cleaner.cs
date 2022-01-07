@@ -41,7 +41,7 @@ namespace gc
 
         internal void InitConfig()
         {
-            Console.Write("Reading app config...");
+            Logger.Info("Reading app config...", false);
 
             if (!File.Exists("config.json"))
             {
@@ -58,7 +58,7 @@ namespace gc
 
         internal void InitDB()
         {
-            Console.Write("Initializing db connection...");
+            Logger.Info("Initializing db connection...", false);
 
             var builder = new MySqlConnectionStringBuilder
             {
@@ -85,7 +85,7 @@ namespace gc
 
         internal void InitPath()
         {
-            Console.Write("Locating files...");
+            Logger.Info("Locating files...", false);
 
             FilesPath = Config.Files.Path;
 
@@ -106,34 +106,43 @@ namespace gc
 
         public async Task CleanUp()
         {
-            Console.WriteLine("Cleaning up files task started...");
+            Logger.Info("Cleaning up files task started...");
 
             await CleanUnattachedFiles();
 
+            if (Check)
+            {
+                await CheckCleanUp();
+            }
+
             Connection.Close();
 
-            Console.WriteLine("Cleaning up files task finished...");
+            Logger.Info("Cleaning up files task finished");
 
             return;
         }
 
-        internal async Task CleanUnattachedFiles()
+        internal MySqlCommand CreateCommand()
         {
-            Console.WriteLine("Task start: Clean up files unattached to db");
-            var timeStart = DateTime.Now;
+            return Connection.CreateCommand();
+        }
 
-            int count = 0;
-            long size = 0;
-
-            var timeWalk = DateTime.Now;
-
+        internal MySqlCommand CreateCommand(string sql)
+        {
             var cmd = Connection.CreateCommand();
 
-            cmd.CommandText = $"SELECT COUNT(*) FROM `{Config.Files.Table}`";
+            cmd.CommandText = sql;
+
+            return cmd;
+        }
+
+        internal async Task<int> CountFilesInDB()
+        {
+            var cmd = CreateCommand($"SELECT COUNT(*) FROM `{Config.Files.Table}`");
 
             if (Config.Debug)
             {
-                Console.WriteLine($"[DEBUG] sql count: {cmd.CommandText}");
+                Logger.Info($"[DEBUG] sql: {cmd.CommandText}");
             }
 
             int dbFilesCount = 0;
@@ -142,18 +151,28 @@ namespace gc
             if (result != null)
             {
                 dbFilesCount = Convert.ToInt32(result);
-
-                Console.WriteLine($"File entries in DB to check: {dbFilesCount}");
             }
 
-            cmd.CommandText = $"SELECT `id`, `file` FROM `{Config.Files.Table}`";
+            return dbFilesCount;
+        }
 
-            if (Config.Debug)
-            {
-                Console.WriteLine($"[DEBUG] sql scan: {cmd.CommandText}");
-            }
+        internal async Task CleanUnattachedFiles()
+        {
+            Logger.Info("Task start: Clean up files unattached to db");
+            var timeStart = DateTime.Now;
 
-            Console.WriteLine("Scanning files in db...");
+            int count = 0;
+            long size = 0;
+
+            var timeWalk = DateTime.Now;
+
+            int dbFilesCount = await CountFilesInDB();
+
+            Logger.Info($"File entries in DB to check: {dbFilesCount}");
+
+            var cmd = CreateCommand($"SELECT `id`, `file` FROM `{Config.Files.Table}`");
+
+            Logger.Info("Scanning files in db...");
 
             var ignoreList = new List<int>();
             var existList = new List<string>();
@@ -173,26 +192,36 @@ namespace gc
                     {
                         ignoreList.Add(id);
 
-                        Console.WriteLine($"[{checkedRows} of {dbFilesCount}] File {id} in path `{path}` not exists - add to ignore list");
+                        if (Config.Debug)
+                        {
+                            Logger.Debug($"[{checkedRows} of {dbFilesCount}] File {id} in path `{path}` not exists - add to ignore list");
+                        }
                     }
                     else
                     {
-                        Console.WriteLine($"[{checkedRows} of {dbFilesCount}] File {id} in path `{path}` exists");
+                        if (Config.Debug)
+                        {
+                            Logger.Debug($"[{checkedRows} of {dbFilesCount}] File {id} in path `{path}` exists");
+                        }
 
                         existList.Add(Path.GetFileNameWithoutExtension(path));
                     }
 
+                    Logger.Progress($"{checkedRows} of {dbFilesCount} >> {checkedRows / (double)dbFilesCount:0.00%}");
+
                     checkedRows++;
                 }
+
+                Console.WriteLine();
             }
 
             checkedRows--;
 
-            Console.WriteLine("Scanning finished");
+            Logger.Info("Scanning finished");
 
-            Console.WriteLine($"Checked rows: {checkedRows}");
-            Console.WriteLine($"Ignored rows (files in DB, but not exist IRL): {ignoreList.Count}");
-            Console.WriteLine($"Time taken: {DateTime.Now - timeWalk}");
+            Logger.Info($"Checked rows: {checkedRows}");
+            Logger.Info($"Ignored rows (files in DB, but not exist IRL): {ignoreList.Count}");
+            Logger.Info($"Time taken: {DateTime.Now - timeWalk}");
 
             timeWalk = DateTime.Now;
             var timeStep = DateTime.Now;
@@ -204,7 +233,7 @@ namespace gc
 
             var fileList = Directory.GetFiles(FilesPath, "*", SearchOption.TopDirectoryOnly);
 
-            Console.WriteLine("Scanning files in folder...");
+            Logger.Info("Scanning files in folder...");
 
             foreach (var path in fileList)
             {
@@ -221,7 +250,7 @@ namespace gc
 
                 if ((DateTime.Now - timeStep).Seconds >= 1)
                 {
-                    Console.WriteLine($"Scanned {countAll} files");
+                    Logger.Info($"Scanned {countAll} files");
 
                     timeStep = DateTime.Now;
                 }
@@ -257,24 +286,24 @@ namespace gc
 
                 if (Config.Debug)
                 {
-                    Console.WriteLine($"[DEBUG] path: {path}");
-                    Console.WriteLine($"[DEBUG] fileName: {fileName}");
-                    Console.WriteLine($"[DEBUG] fileExt: {fileExt}");
-                    Console.WriteLine($"[DEBUG] baseName: {baseName}");
-                    Console.WriteLine($"[DEBUG] exists: {exists}");
-                    Console.WriteLine($"[DEBUG] markRemoved: {markRemoved}");
+                    Logger.Debug($"path: {path}");
+                    Logger.Debug($"fileName: {fileName}");
+                    Logger.Debug($"fileExt: {fileExt}");
+                    Logger.Debug($"baseName: {baseName}");
+                    Logger.Debug($"exists: {exists}");
+                    Logger.Debug($"markRemoved: {markRemoved}");
                 }
             }
 
-            Console.WriteLine("Scanning finished");
+            Logger.Info("Scanning finished");
 
-            Console.WriteLine($"File entries scanned: {countAll}");
-            Console.WriteLine($"Scanned file entries total size: {sizeAll}");
-            Console.WriteLine($"Time taken: {DateTime.Now - timeWalk}");
+            Logger.Info($"File entries scanned: {countAll}");
+            Logger.Info($"Scanned file entries total size: {sizeAll}");
+            Logger.Info($"Time taken: {DateTime.Now - timeWalk}");
 
             timeWalk = DateTime.Now;
 
-            Console.WriteLine("Removing files...");
+            Logger.Info("Removing files...");
 
             int progress = 1;
             int all = toRemove.Count;
@@ -284,7 +313,7 @@ namespace gc
                 string baseName = item.Key;
                 List<string> list = item.Value;
 
-                Console.WriteLine($"[{progress} of {all}] Process entries by base name '{baseName}' - count of files that will be removed: {list.Count}");
+                Logger.Info($"[{progress} of {all}] Process entries by base name '{baseName}' - count of files that will be removed: {list.Count}");
 
                 foreach (var path in list)
                 {
@@ -297,7 +326,7 @@ namespace gc
                         File.Delete(path);
                     }
 
-                    Console.WriteLine($"[{progress} of {all}] >> Remove file '{path}'");
+                    Logger.Info($"[{progress} of {all}] >> Remove file '{path}'");
 
                     count++;
 
@@ -307,12 +336,24 @@ namespace gc
                 progress++;
             }
 
-            Console.WriteLine("Removing files finished");
-            Console.WriteLine($"Files removed: {count}");
-            Console.WriteLine($"Removed files total size: {size}");
-            Console.WriteLine($"Time taken: {DateTime.Now - timeWalk}");
+            Logger.Info("Removing files finished");
+            Logger.Info($"Files removed: {count}");
+            Logger.Info($"Removed files total size: {size}");
+            Logger.Info($"Time taken: {DateTime.Now - timeWalk}");
 
-            Console.WriteLine($"Task completed in {DateTime.Now - timeStart}");
+            Logger.Info($"Task completed in {DateTime.Now - timeStart}");
+
+            return;
+        }
+
+        internal async Task CheckCleanUp()
+        {
+            Logger.Info("Task start: Check files after clean up");
+            var timeStart = DateTime.Now;
+
+            var timeWalk = DateTime.Now;
+
+            Logger.Info($"Task completed in {DateTime.Now - timeStart}");
 
             return;
         }
