@@ -2,7 +2,6 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 
@@ -112,7 +111,7 @@ namespace gc
 
             if (Check)
             {
-                await CheckCleanUp();
+                CheckCleanUp();
             }
 
             Connection.Close();
@@ -250,7 +249,7 @@ namespace gc
 
                 if ((DateTime.Now - timeStep).Seconds >= 1)
                 {
-                    Logger.Info($"Scanned {countAll} files");
+                    Console.Write($"\rScanned {countAll} files");
 
                     timeStep = DateTime.Now;
                 }
@@ -286,6 +285,8 @@ namespace gc
 
                 if (Config.Debug)
                 {
+                    Console.WriteLine();
+
                     Logger.Debug($"path: {path}");
                     Logger.Debug($"fileName: {fileName}");
                     Logger.Debug($"fileExt: {fileExt}");
@@ -294,6 +295,8 @@ namespace gc
                     Logger.Debug($"markRemoved: {markRemoved}");
                 }
             }
+
+            Console.WriteLine();
 
             Logger.Info("Scanning finished");
 
@@ -346,7 +349,7 @@ namespace gc
             return;
         }
 
-        internal async Task CheckCleanUp()
+        internal void CheckCleanUp()
         {
             Logger.Info("Task start: Check files after clean up");
             var timeStart = DateTime.Now;
